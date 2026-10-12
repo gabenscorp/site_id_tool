@@ -1,0 +1,4341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Go-Site Suitability Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2230; --panel2:#232d3f; --line:#2e3a4f;
+    --ink:#e8edf4; --muted:#8fa0b8; --accent:#4da3ff;
+    --g5:#2ecc71; --g4:#7ed957; --g3:#f4c542; --g2:#f39c12; --g1:#e74c3c;
+    --shadow:0 4px 20px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5}
+  .wrap{max-width:1400px;margin:0 auto;padding:24px}
+  header{display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+  h1{font-size:35px;font-weight:650;letter-spacing:-.3px}
+  header .sub{color:var(--muted);font-size:15px;margin-top:4px}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);align-items:center;flex-wrap:wrap}
+  .legend .dot{display:inline-block;width:15px;height:11px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:20px}
+  @media(max-width:1000px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .card h2{font-size:22px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+    padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600}
+  #map{height:520px;border-radius:0 0 12px 12px;z-index:1}
+  /* darken the light OSM tiles to fit the dark dashboard theme */
+  .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
+  .leaflet-home-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:34px;height:34px;line-height:34px;font-size:18px;font-weight:700;
+    background:#fff;color:#333;text-align:center;text-decoration:none;
+    border-radius:4px;box-shadow:0 1px 5px rgba(0,0,0,.4);
+    margin-top:8px;border:2px solid rgba(0,0,0,.2)}
+  .leaflet-home-btn:hover{background:#f4f4f4;color:#000}
+  .list{max-height:520px;overflow:auto}
+  .row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);
+    cursor:pointer;transition:background .12s}
+  .row:hover{background:var(--panel2)}
+  .row.active{background:var(--panel2);box-shadow:inset 3px 0 0 var(--accent)}
+  .rank{font-size:12px;color:var(--muted);width:24px;text-align:center;flex:none}
+  .score-badge{flex:none;width:52px;height:52px;border-radius:10px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;font-weight:700;color:#0b0f14}
+  .score-badge .pct{font-size:17px;line-height:1}
+  .score-badge .lab{font-size:8.5px;font-weight:600;opacity:.8;text-transform:uppercase}
+  .row .meta{flex:1;min-width:0}
+  .row .name{font-weight:600;font-size:14px}
+  .row .desc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .mini{display:flex;gap:3px;margin-top:5px}
+  .row .mini span{height:5px;border-radius:3px;flex:1}
+  .detail{padding:16px}
+  .detail .empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:14px}
+  .detail h3{font-size:20px;margin-bottom:2px}
+  .detail .loc{color:var(--muted);font-size:18px;margin-bottom:14px}
+  .bigscore{display:flex;align-items:center;gap:16px;margin-bottom:18px;padding:14px;
+    background:var(--panel2);border-radius:10px}
+  .bigscore .num{font-size:38px;font-weight:750;line-height:1}
+  .bigscore .num small{font-size:15px;color:var(--muted);font-weight:500}
+  .bigscore .verdict{font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;display:inline-block}
+  .domains{display:flex;flex-direction:column;gap:12px}
+  .dom{}
+  .dom .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+  .dom .top b{font-weight:600}
+  .dom .top .v{color:var(--muted)}
+  .bar{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:6px}
+  .crit{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+  .crit .ct{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:10px}
+  .crit table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .crit td{padding:4px 0}
+  .crit td.k{color:var(--muted)}
+  .crit td.m{text-align:right;color:var(--ink);font-weight:600;padding-right:12px}
+  .crit td.s{text-align:right;font-weight:600;width:34px}
+  .pill{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;
+    font-weight:700;font-size:12px;color:#0b0f14}
+  .foot{color:var(--muted);font-size:11.5px;text-align:center;margin-top:22px;padding-top:14px;
+    border-top:1px solid var(--line)}
+  .stat-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .stat{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .stat .l{font-size:22px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .stat .n{font-size:30px;font-weight:700;margin-top:2px}
+  .method{padding:18px 20px}
+  .method-flow{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+  .mstep{flex:1;min-width:190px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:10px;padding:14px;display:flex;gap:11px}
+  .mnum{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#06121f;
+    font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .mbody b{font-size:16.5px;display:block;margin-bottom:4px}
+  .mbody p{font-size:15px;color:var(--muted);line-height:1.5;margin:0}
+  .marrow{display:flex;align-items:center;color:var(--muted);font-size:20px;flex:none}
+  @media(max-width:900px){.marrow{display:none}.mstep{min-width:100%}}
+  .tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;margin:2px 2px 0 0;color:#0b0f14}
+  .tag.env{background:#7ed957}.tag.tr{background:#4da3ff}.tag.en{background:#f4c542}.tag.sc{background:#e74c3c}
+  .wbars{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+  .wrow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted)}
+  .wrow span{width:82px;flex:none}
+  .wrow b{width:34px;text-align:right;color:var(--ink)}
+  .wbar{flex:1;height:7px;background:var(--panel);border-radius:5px;overflow:hidden}
+  .wbar>i{display:block;height:100%;background:var(--accent);border-radius:5px}
+  .formula{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:9px 12px;font-size:15px;text-align:center;margin:6px 0;color:var(--ink);font-weight:600}
+  .ex{font-size:14.5px;color:var(--muted)}
+  .ex b{color:#2ecc71}
+  .method-gate{margin-top:14px;background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.35);
+    border-radius:10px;padding:12px 14px}
+  .method-gate b{font-size:15px;color:#e74c3c}
+  .method-gate p{font-size:14px;color:var(--muted);margin:5px 0 0;line-height:1.5}
+  .method-scale{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .method-scale .sc{font-size:12px;font-weight:600;padding:5px 12px;border-radius:8px;color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Go-Site Suitability Dashboard</h1>
+      <div class="sub">Composite suitability scores &middot; 12 candidate sites</div>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:#2ecc71"></span>Excellent (90-100%)</span>
+      <span><span class="dot" style="background:#f1c40f"></span>Very Good (80-89%)</span>
+      <span><span class="dot" style="background:#e67e22"></span>Good (60-79%)</span>
+      <span><span class="dot" style="background:#e74c3c"></span>Marginal (&lt;60%)</span>
+    </div>
+  </header>
+
+  <div class="stat-row" style="margin-top:20px">
+    <div class="stat"><div class="l">Sites evaluated</div><div class="n">12</div></div>
+    <div class="stat"><div class="l">Excellent</div><div class="n" id="s-exc" style="color:#2ecc71">–</div></div>
+    <div class="stat"><div class="l">Avg. score</div><div class="n" id="s-avg">–</div></div>
+    <div class="stat"><div class="l">Top site</div><div class="n" id="s-top" style="font-size:17px">–</div></div>
+  </div>
+
+
+  <div class="grid">
+    <div class="card">
+      <h2>Site Locations &amp; Scores</h2>
+      <div id="map"></div>
+    </div>
+    <div class="card">
+      <h2>Ranked Sites &mdash; click for detail</h2>
+      <div class="list" id="list"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>Site Detail</h2>
+    <div class="detail" id="detail"><div class="empty">Select a site from the map or list to see its full breakdown.</div></div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>How the Composite Score Is Computed</h2>
+    <div class="method">
+      <div class="method-flow">
+        <div class="mstep">
+          <div class="mnum">1</div>
+          <div class="mbody">
+            <b>Score each criterion 1&ndash;5</b>
+            <p>Every criterion (interstate distance, floodplain %, slope, etc.) is scored
+            on a 1&ndash;5 scale against defined thresholds &mdash; 5 = best, 1 = worst.
+            Distances where closer is better except hospital and school where farther is better; coverage &amp; slope where less is better.</p>
+          </div>
+        </div>
+        <div class="marrow">&rarr;</div>
+        <div class="mstep">
+          <div class="mnum">2</div>
+          <div class="mbody">
+            <b>Weight criteria into domains</b>
+            <p>Within each domain, criteria are combined by a <b>weighted average</b> &mdash; more important criteria
+                carry more weight &mdash; giving a 1&ndash;5 score per domain:
+            <span class="tag env">Environment</span>
+            <span class="tag tr">Transportation</span>
+            <span class="tag en">Energy</span>
+            <span class="tag sc">Social</span></p>
+          </div>
+        </div>
+        <div class="marrow">&rarr;</div>
+        <div class="mstep">
+          <div class="mnum">3</div>
+          <div class="mbody">
+            <b>Weight the domains</b>
+            <p>Domain scores combine into one composite using these weights:</p>
+            <div class="wbars">
+              <div class="wrow"><span>Energy</span><div class="wbar"><i style="width:50%"></i></div><b>50%</b></div>
+              <div class="wrow"><span>Transportation</span><div class="wbar"><i style="width:25%"></i></div><b>25%</b></div>
+              <div class="wrow"><span>Environment</span><div class="wbar"><i style="width:20%"></i></div><b>20%</b></div>
+              <div class="wrow"><span>Social</span><div class="wbar"><i style="width:5%"></i></div><b>5%</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="marrow">&rarr;</div>
+        <div class="mstep">
+          <div class="mnum">4</div>
+          <div class="mbody">
+            <b>Convert to a percentage</b>
+            <p>The 1&ndash;5 composite is rescaled to an intuitive 0&ndash;100%:</p>
+            <div class="formula">Score % = (Composite &minus; 1) &divide; 4 &times; 100</div>
+            <p class="ex">e.g. a composite of 4.5 &rarr; (4.5&minus;1)/4&times;100 = <b>88%</b></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="method-scale">
+        <span class="sc" style="background:#2ecc71">90&ndash;100% &middot; Excellent</span>
+        <span class="sc" style="background:#f1c40f;color:#0b0f14">80&ndash;89% &middot; Very Good</span>
+        <span class="sc" style="background:#e67e22;color:#0b0f14">60&ndash;79% &middot; Good</span>
+        <span class="sc" style="background:#e74c3c">&lt;60% &middot; Marginal</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Composite = weighted average of Environment (20%), Transportation (25%), Energy (50%), Social (5%) domain scores,
+    rescaled to 0&ndash;100%. Non-attainment zone criterion was excluded from computing the composite score.
+    <br/>Go-Site Analyses Result Generated for Management Review.
+  </div>
+</div>
+
+<script>
+// ----- SAMPLE DATA: 12 candidate rail sites -----------------------------------
+// Domain scores are on the 1-5 scale; percentage = (composite-1)/4*100.
+//const SITES = [
+  //{id:"5060", name:"1523 Midfield Industrial Site", loc:"Jefferson County, AL", lat:33.451644, lon:-86.904253, acreage:12,
+   // domains:{environment:5.0, transportation:3.8, energy:4.7, social: 3.8},
+   // crit:{
+      //interstate:{s:4, m:"2.0 mi"}, principal_arterial:{s:3, m:"7.0 mi"}, minor_arterial:{s:4, m:"0.8 mi"},
+      //major_collector:{s:4, m: "2.4 mi"}, transmission:{s:5, m:"0.2 mi"}, gas_pipeline:{s:5, m:"2.3 mi"},
+     // floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+      //wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"5110", name:"Moundville Site", loc:"Tuscaloosa County, AL", lat:33.058601, lon:-87.595971, acreage:203,
+   // domains:{environment:4.3, transportation:4.4, energy:4.6, social: 1.2},
+    //crit:{
+      //interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+      //major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+      //floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+     // wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"5117", name:"1532 Midfield Industrial Site", loc:"Jefferson County, AL", lat:33.452525, lon:-86.906323, acreage:45,
+    //domains:{environment:4.1, transportation:4.6, energy:4.2, social: 2.2},
+    //crit:{
+      //interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+      //major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+      //floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+      //wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"5202", name:"Georgia Megasite", loc:"Peach County, GA", lat:32.574226, lon:-83.861365, acreage:39,
+    //domains:{environment:3.6, transportation:4.7, energy:4.4, social: 2.3},
+    //crit:{
+     // interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+     // major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+      //floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+      //wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"5200", name:"East Decatur Site", loc:"Macon County, IL", lat:39.864057, lon:-88.863396, acreage:6,
+    //domains:{environment:4.0, transportation:3.9, energy:4.1, social: 2.3},
+    //crit:{
+     // interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+      //major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+      //floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+      //wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"4282", name:"Industrial Centre Site #3", loc:"Delaware County, IN", lat:40.152961, lon:-85.397694, acreage:80,
+    //domains:{environment:3.4, transportation:4.2, energy:3.6, social: 2.3},
+    //crit:{
+     // interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+     // major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+     // floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+     // wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"5201", name:"New Haven Site", loc:"Allen County, IN", lat:41.082515, lon:-84.967725, acreage:145,
+    //domains:{environment:3.8, transportation:3.2, energy:3.3, social: 3.3},
+    //crit:{
+     // interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+     // major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+     // floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+    //  wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+   // school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"3757", name:"Chatham-Siler City Advanced Manufacturing Site", loc:"Chatham County, NC", lat:35.758824, lon:-79.529386, acreage:1350,
+   // domains:{environment:2.6, transportation:3.8, energy:3.4, social: 4.3},
+    //crit:{
+      //interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+     // major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+     // floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+     // wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"2865", name:"London-Eagleton Industrial South Site", loc:"Madison County, OH", lat:39.896842, lon:-83.401095, acreage:120,
+   // domains:{environment:3.1, transportation:2.9, energy:2.7, social:3.4},
+    //crit:{
+     // interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+     // major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+     // floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+     // wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"4074", name:"Riverroad Site", loc:"Berks County, PA", lat:40.344594, lon:-75.946402, acreage:54,
+    //domains:{environment:3.1, transportation:2.9, energy:2.7, social: 4.4},
+    //crit:{
+      //interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+     // major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+      //floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+     // wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+    //school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+  //{id:"5203", name:"Snelgrove Site", loc:"Orangeburg County, SC", lat:33.386808, lon:-80.845373, acreage:393,
+   // domains:{environment:3.1, transportation:2.9, energy:2.7, social: 1.0},
+   // crit:{
+     // interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+    //  major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+    //  floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+   //   wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+   // school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}},
+ // {id:"3322", name:"Pathway Park", loc:"Smyth County, VA", lat:36.790261, lon:-81.689462, acreage:70,
+  //  domains:{environment:3.1, transportation:2.9, energy:2.7, social: 4.1},
+    //crit:{
+    //  interstate:{s:5, m:"0.3 mi"}, principal_arterial:{s:5, m:"0.2 mi"}, minor_arterial:{s:4, m:"0.6 mi"},
+    //  major_collector:{s:4, m: "0.4 mi"}, transmission:{s:5, m:"0.4 mi"}, gas_pipeline:{s:5, m:"0.3 mi"},
+    //  floodplain_100:{s:5, m:"0%"}, floodplain_500:{s:4, m:"6%"}, floodway:{s:5, m:"0%"},
+     // wet_water:{s:4, m:"4%"}, slope:{s:5, m:"1.2%"}, non_attainment:{s:5, m:"0%"}, hospital: {s:5, m:"1 mi"},
+   // school: {s:5, m:"1 mi"}, cemetery: {s:5, m:"1"}}}
+//];
+
+const SITES = [
+    {
+        "id": 5060,
+        "name": "1523 Midfield Industrial Site",
+        "loc": "Jefferson County, AL",
+        "lat": 33.451644,
+        "lon": -86.904253,
+        "acreage": 12,
+        "domains": {
+            "environment": 5.0,
+            "transportation": 3.8,
+            "energy": 4.7,
+            "social": 3.8
+        },
+        "crit": {
+            "interstate": {
+                "s": 4,
+                "m": "2.0 mi"
+            },
+            "principal_arterial": {
+                "s": 3,
+                "m": "7.0 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.8 mi"
+            },
+            "major_collector": {
+                "s": 3,
+                "m": "2.4 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.2 mi"
+            },
+            "gas_pipeline": {
+                "s": 4,
+                "m": "2.3 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "slope": {
+                "s": 5,
+                "m": "1.7 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "4.5 mi"
+            },
+            "school": {
+                "s": 2,
+                "m": "0.6 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -86.90513361299998,
+                        33.44995200200003
+                    ],
+                    [
+                        -86.90588781099996,
+                        33.449311634000026
+                    ],
+                    [
+                        -86.90533159199998,
+                        33.44995071000005
+                    ],
+                    [
+                        -86.90517645099999,
+                        33.45012896000003
+                    ],
+                    [
+                        -86.90617186899999,
+                        33.45093943200004
+                    ],
+                    [
+                        -86.90619507499997,
+                        33.450958325000045
+                    ],
+                    [
+                        -86.90598457999994,
+                        33.451140520000024
+                    ],
+                    [
+                        -86.90587273099999,
+                        33.45123257900008
+                    ],
+                    [
+                        -86.90575549799996,
+                        33.451319805000026
+                    ],
+                    [
+                        -86.90563317999994,
+                        33.451401978000035
+                    ],
+                    [
+                        -86.90550608499996,
+                        33.451478888000054
+                    ],
+                    [
+                        -86.90469396799995,
+                        33.45194473500004
+                    ],
+                    [
+                        -86.90455617199996,
+                        33.45202812000008
+                    ],
+                    [
+                        -86.90442355399995,
+                        33.45211720900005
+                    ],
+                    [
+                        -86.90429644999995,
+                        33.45221177700006
+                    ],
+                    [
+                        -86.90417517999998,
+                        33.452311585000075
+                    ],
+                    [
+                        -86.90330469099996,
+                        33.453064993000055
+                    ],
+                    [
+                        -86.90239412799997,
+                        33.452277898000034
+                    ],
+                    [
+                        -86.90513361299998,
+                        33.44995200200003
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 5110,
+        "name": "Moundville Site",
+        "loc": "Tuscaloosa County, AL",
+        "lat": 33.058601,
+        "lon": -87.595971,
+        "acreage": 203,
+        "domains": {
+            "environment": 4.1,
+            "transportation": 3.3,
+            "energy": 4.5,
+            "social": 3.8
+        },
+        "crit": {
+            "interstate": {
+                "s": 4,
+                "m": "4.7 mi"
+            },
+            "principal_arterial": {
+                "s": 1,
+                "m": "53.5 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.9 mi"
+            },
+            "major_collector": {
+                "s": 4,
+                "m": "1.1 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.2 mi"
+            },
+            "gas_pipeline": {
+                "s": 4,
+                "m": "1.2 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.2 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "1.0 %"
+            },
+            "slope": {
+                "s": 2,
+                "m": "8.7 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "10.7 mi"
+            },
+            "school": {
+                "s": 2,
+                "m": "0.5 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -87.59001755499997,
+                        33.06147637500004
+                    ],
+                    [
+                        -87.59001944699997,
+                        33.06124041100003
+                    ],
+                    [
+                        -87.59005799499994,
+                        33.05643188400006
+                    ],
+                    [
+                        -87.59006093899995,
+                        33.05606457300007
+                    ],
+                    [
+                        -87.59102871499994,
+                        33.05605444300005
+                    ],
+                    [
+                        -87.59105202999996,
+                        33.055272485000046
+                    ],
+                    [
+                        -87.59230392399996,
+                        33.055277886000056
+                    ],
+                    [
+                        -87.59243506399997,
+                        33.05527847600007
+                    ],
+                    [
+                        -87.59488634199994,
+                        33.055288983000025
+                    ],
+                    [
+                        -87.59528235399995,
+                        33.05530709900006
+                    ],
+                    [
+                        -87.59567894899999,
+                        33.055307793000054
+                    ],
+                    [
+                        -87.59607504599995,
+                        33.05529106200004
+                    ],
+                    [
+                        -87.60195431599999,
+                        33.05530808100008
+                    ],
+                    [
+                        -87.60206777699995,
+                        33.05531837800004
+                    ],
+                    [
+                        -87.60171981499997,
+                        33.058031680000056
+                    ],
+                    [
+                        -87.60168567799997,
+                        33.05834215900006
+                    ],
+                    [
+                        -87.60163016099995,
+                        33.058650442000044
+                    ],
+                    [
+                        -87.60155344999998,
+                        33.05895548500007
+                    ],
+                    [
+                        -87.60143820999997,
+                        33.05930385100004
+                    ],
+                    [
+                        -87.60129535499999,
+                        33.05964488600006
+                    ],
+                    [
+                        -87.60112553499994,
+                        33.059977040000035
+                    ],
+                    [
+                        -87.60092945799994,
+                        33.060298798000076
+                    ],
+                    [
+                        -87.60070799799996,
+                        33.060608659000025
+                    ],
+                    [
+                        -87.60046216799998,
+                        33.06090520500004
+                    ],
+                    [
+                        -87.59998779199998,
+                        33.06137514000005
+                    ],
+                    [
+                        -87.59971156499995,
+                        33.061177444000066
+                    ],
+                    [
+                        -87.59930859899998,
+                        33.06163633600005
+                    ],
+                    [
+                        -87.59850423999995,
+                        33.06255230900007
+                    ],
+                    [
+                        -87.59891309499994,
+                        33.062552123000046
+                    ],
+                    [
+                        -87.59773819599997,
+                        33.06390741300004
+                    ],
+                    [
+                        -87.59776444299996,
+                        33.06255264400005
+                    ],
+                    [
+                        -87.59566748599997,
+                        33.06255358300007
+                    ],
+                    [
+                        -87.59540290199999,
+                        33.06255370300005
+                    ],
+                    [
+                        -87.59363385199998,
+                        33.06255446700004
+                    ],
+                    [
+                        -87.59347672099994,
+                        33.06255453000006
+                    ],
+                    [
+                        -87.59000889499998,
+                        33.06255592600007
+                    ],
+                    [
+                        -87.59001755499997,
+                        33.06147637500004
+                    ]
+                ],
+                [
+                    [
+                        -87.59848573199997,
+                        33.058184452000035
+                    ],
+                    [
+                        -87.59832798499997,
+                        33.057066305000035
+                    ],
+                    [
+                        -87.59763721399997,
+                        33.05717456100007
+                    ],
+                    [
+                        -87.59781381199997,
+                        33.057874981000055
+                    ],
+                    [
+                        -87.59796479699997,
+                        33.058197230000076
+                    ],
+                    [
+                        -87.59848573199997,
+                        33.058184452000035
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 5117,
+        "name": "1532 Midfield Industrial Site",
+        "loc": "Jefferson County, AL",
+        "lat": 33.452525,
+        "lon": -86.906323,
+        "acreage": 45,
+        "domains": {
+            "environment": 4.9,
+            "transportation": 4.2,
+            "energy": 4.7,
+            "social": 3.8
+        },
+        "crit": {
+            "interstate": {
+                "s": 5,
+                "m": "1.9 mi"
+            },
+            "principal_arterial": {
+                "s": 3,
+                "m": "7.1 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.7 mi"
+            },
+            "major_collector": {
+                "s": 3,
+                "m": "2.6 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.2 mi"
+            },
+            "gas_pipeline": {
+                "s": 4,
+                "m": "2.2 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "slope": {
+                "s": 4,
+                "m": "2.7 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "4.6 mi"
+            },
+            "school": {
+                "s": 2,
+                "m": "0.4 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -86.90774247099995,
+                        33.449934959000075
+                    ],
+                    [
+                        -86.90911212399999,
+                        33.44874936900004
+                    ],
+                    [
+                        -86.90913019099997,
+                        33.44992587000007
+                    ],
+                    [
+                        -86.90913031699995,
+                        33.44993409600005
+                    ],
+                    [
+                        -86.90914253499994,
+                        33.450870887000065
+                    ],
+                    [
+                        -86.90352205199997,
+                        33.45659356600004
+                    ],
+                    [
+                        -86.90245873299995,
+                        33.45564204300007
+                    ],
+                    [
+                        -86.90406746299999,
+                        33.45421685700006
+                    ],
+                    [
+                        -86.90324699899998,
+                        33.45343093900004
+                    ],
+                    [
+                        -86.90436357999994,
+                        33.45246454000005
+                    ],
+                    [
+                        -86.90447543199997,
+                        33.452372482000044
+                    ],
+                    [
+                        -86.90459266699997,
+                        33.452285258000074
+                    ],
+                    [
+                        -86.90471498699998,
+                        33.452203086000054
+                    ],
+                    [
+                        -86.90484208299995,
+                        33.452126177000025
+                    ],
+                    [
+                        -86.90565420099995,
+                        33.45166033000004
+                    ],
+                    [
+                        -86.90579199599995,
+                        33.45157694400007
+                    ],
+                    [
+                        -86.90592461099999,
+                        33.45148785200007
+                    ],
+                    [
+                        -86.90605171399994,
+                        33.451393282000026
+                    ],
+                    [
+                        -86.90617297899996,
+                        33.45129347200003
+                    ],
+                    [
+                        -86.90774247099995,
+                        33.449934959000075
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 5202,
+        "name": "Georgia Megasite",
+        "loc": "Peach County, GA",
+        "lat": 32.574226,
+        "lon": -83.861365,
+        "acreage": 39,
+        "domains": {
+            "environment": 4.8,
+            "transportation": 3.0,
+            "energy": 4.7,
+            "social": 4.6
+        },
+        "crit": {
+            "interstate": {
+                "s": 3,
+                "m": "6.7 mi"
+            },
+            "principal_arterial": {
+                "s": 1,
+                "m": "51.4 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.2 mi"
+            },
+            "major_collector": {
+                "s": 5,
+                "m": "0.3 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "gas_pipeline": {
+                "s": 4,
+                "m": "2.1 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "slope": {
+                "s": 4,
+                "m": "5.0 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "6.2 mi"
+            },
+            "school": {
+                "s": 4,
+                "m": "1.5 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -83.86107909499998,
+                        32.577630114000044
+                    ],
+                    [
+                        -83.86102307599998,
+                        32.57783393100004
+                    ],
+                    [
+                        -83.86101801999996,
+                        32.57784996500004
+                    ],
+                    [
+                        -83.86092554399994,
+                        32.57812116900004
+                    ],
+                    [
+                        -83.86088732099995,
+                        32.57825377200004
+                    ],
+                    [
+                        -83.85861247299994,
+                        32.57454362300007
+                    ],
+                    [
+                        -83.85955138799994,
+                        32.57377442300003
+                    ],
+                    [
+                        -83.86016042799997,
+                        32.57329596400007
+                    ],
+                    [
+                        -83.86025559999996,
+                        32.57322655300004
+                    ],
+                    [
+                        -83.86028909999999,
+                        32.57320320200006
+                    ],
+                    [
+                        -83.86032345699994,
+                        32.57318076100006
+                    ],
+                    [
+                        -83.86035863699999,
+                        32.57315925300003
+                    ],
+                    [
+                        -83.86086038599996,
+                        32.57286578000003
+                    ],
+                    [
+                        -83.86103736999996,
+                        32.57276750800003
+                    ],
+                    [
+                        -83.86121554899995,
+                        32.57266309100004
+                    ],
+                    [
+                        -83.86141988499998,
+                        32.57255034600007
+                    ],
+                    [
+                        -83.86169085599994,
+                        32.572394092000025
+                    ],
+                    [
+                        -83.86189048399996,
+                        32.572281916000065
+                    ],
+                    [
+                        -83.86206245799997,
+                        32.572184211000035
+                    ],
+                    [
+                        -83.86222123599998,
+                        32.57209111200007
+                    ],
+                    [
+                        -83.86234344999997,
+                        32.57202259200005
+                    ],
+                    [
+                        -83.86243427799997,
+                        32.571970402000034
+                    ],
+                    [
+                        -83.86255991999997,
+                        32.57190275000005
+                    ],
+                    [
+                        -83.86266505599997,
+                        32.57184506300007
+                    ],
+                    [
+                        -83.86279704099996,
+                        32.571774969000046
+                    ],
+                    [
+                        -83.86292265599997,
+                        32.57171005600003
+                    ],
+                    [
+                        -83.86326578999996,
+                        32.57152519600004
+                    ],
+                    [
+                        -83.86339299099996,
+                        32.57145343500002
+                    ],
+                    [
+                        -83.86346322699995,
+                        32.57140979400003
+                    ],
+                    [
+                        -83.86353781399998,
+                        32.57136488400005
+                    ],
+                    [
+                        -83.86360580399997,
+                        32.57132181800006
+                    ],
+                    [
+                        -83.86367939299998,
+                        32.571274403000075
+                    ],
+                    [
+                        -83.86377034499998,
+                        32.57121620200007
+                    ],
+                    [
+                        -83.86383176999999,
+                        32.57117713200006
+                    ],
+                    [
+                        -83.86393317199997,
+                        32.57110739900003
+                    ],
+                    [
+                        -83.86406144599994,
+                        32.57102048400003
+                    ],
+                    [
+                        -83.86418522599996,
+                        32.57093907800004
+                    ],
+                    [
+                        -83.86428364699998,
+                        32.57087106400007
+                    ],
+                    [
+                        -83.86430148099998,
+                        32.570859158000076
+                    ],
+                    [
+                        -83.86490985699999,
+                        32.571066349000034
+                    ],
+                    [
+                        -83.86482528899995,
+                        32.57117581000006
+                    ],
+                    [
+                        -83.86475746699995,
+                        32.571266286000025
+                    ],
+                    [
+                        -83.86469212799994,
+                        32.57135806500003
+                    ],
+                    [
+                        -83.86462253099995,
+                        32.57145619900007
+                    ],
+                    [
+                        -83.86455066999997,
+                        32.57155315700004
+                    ],
+                    [
+                        -83.86450842399995,
+                        32.57160707500003
+                    ],
+                    [
+                        -83.86446422999995,
+                        32.57165986100006
+                    ],
+                    [
+                        -83.86441812799995,
+                        32.57171146400003
+                    ],
+                    [
+                        -83.86435713299994,
+                        32.571779337000066
+                    ],
+                    [
+                        -83.86429818299996,
+                        32.571848491000026
+                    ],
+                    [
+                        -83.86423193399997,
+                        32.57193086500007
+                    ],
+                    [
+                        -83.86409662299997,
+                        32.572111652000046
+                    ],
+                    [
+                        -83.86396917599996,
+                        32.57229649200008
+                    ],
+                    [
+                        -83.86384013399999,
+                        32.57248434200005
+                    ],
+                    [
+                        -83.86370380099999,
+                        32.572668462000024
+                    ],
+                    [
+                        -83.86351623999997,
+                        32.572907859000054
+                    ],
+                    [
+                        -83.86341201099998,
+                        32.57304330200003
+                    ],
+                    [
+                        -83.86328352699996,
+                        32.57321947300005
+                    ],
+                    [
+                        -83.86318635399994,
+                        32.573352155000066
+                    ],
+                    [
+                        -83.86305658199996,
+                        32.57352541000006
+                    ],
+                    [
+                        -83.86299825199995,
+                        32.57360257200003
+                    ],
+                    [
+                        -83.86290335199999,
+                        32.57372684300003
+                    ],
+                    [
+                        -83.86280328799995,
+                        32.57385689700004
+                    ],
+                    [
+                        -83.86276503199997,
+                        32.57390607200006
+                    ],
+                    [
+                        -83.86270372599995,
+                        32.57398467400003
+                    ],
+                    [
+                        -83.86258587199995,
+                        32.574142868000024
+                    ],
+                    [
+                        -83.86245001499998,
+                        32.57432679200008
+                    ],
+                    [
+                        -83.86236046299996,
+                        32.57443954800004
+                    ],
+                    [
+                        -83.86222537999998,
+                        32.57460787100007
+                    ],
+                    [
+                        -83.86208705699994,
+                        32.57479143900002
+                    ],
+                    [
+                        -83.86204167899996,
+                        32.57485546800007
+                    ],
+                    [
+                        -83.86199810899996,
+                        32.574920391000035
+                    ],
+                    [
+                        -83.86195892699999,
+                        32.57498204500007
+                    ],
+                    [
+                        -83.86192138899997,
+                        32.57504442700008
+                    ],
+                    [
+                        -83.86183509499995,
+                        32.575198777000026
+                    ],
+                    [
+                        -83.86176113599998,
+                        32.57533970700007
+                    ],
+                    [
+                        -83.86169513599998,
+                        32.57546993100004
+                    ],
+                    [
+                        -83.86160723999996,
+                        32.575651221000044
+                    ],
+                    [
+                        -83.86159140499996,
+                        32.57568620400008
+                    ],
+                    [
+                        -83.86157676399995,
+                        32.575721560000034
+                    ],
+                    [
+                        -83.86155399599994,
+                        32.57578096300006
+                    ],
+                    [
+                        -83.86150058799996,
+                        32.575926536000054
+                    ],
+                    [
+                        -83.86143934899997,
+                        32.57609709500008
+                    ],
+                    [
+                        -83.86142436799997,
+                        32.57614098800008
+                    ],
+                    [
+                        -83.86141396199997,
+                        32.57617481700004
+                    ],
+                    [
+                        -83.86137851799998,
+                        32.57629953900005
+                    ],
+                    [
+                        -83.86129417899997,
+                        32.57661223900004
+                    ],
+                    [
+                        -83.86127811599994,
+                        32.57667747200003
+                    ],
+                    [
+                        -83.86126369999994,
+                        32.57674298000006
+                    ],
+                    [
+                        -83.86123435199994,
+                        32.576887115000034
+                    ],
+                    [
+                        -83.86118369299999,
+                        32.577137710000045
+                    ],
+                    [
+                        -83.86113987999994,
+                        32.57735175400006
+                    ],
+                    [
+                        -83.86110925799994,
+                        32.57750029600004
+                    ],
+                    [
+                        -83.86109497199999,
+                        32.57756533700007
+                    ],
+                    [
+                        -83.86107909499998,
+                        32.577630114000044
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 5200,
+        "name": "East Decatur Site",
+        "loc": "Macon County, IL",
+        "lat": 39.864057,
+        "lon": -88.863396,
+        "acreage": 6,
+        "domains": {
+            "environment": 4.8,
+            "transportation": 3.9,
+            "energy": 4.3,
+            "social": 5.0
+        },
+        "crit": {
+            "interstate": {
+                "s": 4,
+                "m": "3.3 mi"
+            },
+            "principal_arterial": {
+                "s": 3,
+                "m": "5.6 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "1.0 mi"
+            },
+            "major_collector": {
+                "s": 4,
+                "m": "1.5 mi"
+            },
+            "transmission": {
+                "s": 4,
+                "m": "0.8 mi"
+            },
+            "gas_pipeline": {
+                "s": 5,
+                "m": "0.5 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "slope": {
+                "s": 4,
+                "m": "4.5 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "4.3 mi"
+            },
+            "school": {
+                "s": 5,
+                "m": "2.1 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -88.86044822599996,
+                        39.86453135200003
+                    ],
+                    [
+                        -88.86304191899995,
+                        39.86383112000004
+                    ],
+                    [
+                        -88.86507128999995,
+                        39.86328319800003
+                    ],
+                    [
+                        -88.86516099199997,
+                        39.863258977000044
+                    ],
+                    [
+                        -88.86516417699994,
+                        39.86347627300006
+                    ],
+                    [
+                        -88.86516901999994,
+                        39.86380653500004
+                    ],
+                    [
+                        -88.86517872199994,
+                        39.864172729000074
+                    ],
+                    [
+                        -88.86515839899994,
+                        39.86417499100003
+                    ],
+                    [
+                        -88.86264524899997,
+                        39.86443803000003
+                    ],
+                    [
+                        -88.86137726299995,
+                        39.86457140600004
+                    ],
+                    [
+                        -88.86044906499995,
+                        39.86466904700006
+                    ],
+                    [
+                        -88.86044822599996,
+                        39.86453135200003
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 4282,
+        "name": "Industrial Centre Site #3",
+        "loc": "Delaware County, IN",
+        "lat": 40.152961,
+        "lon": -85.397694,
+        "acreage": 80,
+        "domains": {
+            "environment": 5.0,
+            "transportation": 4.0,
+            "energy": 5.0,
+            "social": 3.4
+        },
+        "crit": {
+            "interstate": {
+                "s": 3,
+                "m": "8.7 mi"
+            },
+            "principal_arterial": {
+                "s": 5,
+                "m": "1.5 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.5 mi"
+            },
+            "major_collector": {
+                "s": 3,
+                "m": "3.0 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "gas_pipeline": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "1.6 %"
+            },
+            "slope": {
+                "s": 5,
+                "m": "1.5 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "2.9 mi"
+            },
+            "school": {
+                "s": 1,
+                "m": "0.3 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -85.39542222299997,
+                        40.149291754000046
+                    ],
+                    [
+                        -85.39585146399997,
+                        40.14929564400006
+                    ],
+                    [
+                        -85.39589691699996,
+                        40.149296056000026
+                    ],
+                    [
+                        -85.39942403599997,
+                        40.14932804100005
+                    ],
+                    [
+                        -85.39951503299994,
+                        40.14932886500003
+                    ],
+                    [
+                        -85.40016272099996,
+                        40.14933472100006
+                    ],
+                    [
+                        -85.40016460699997,
+                        40.14945563900005
+                    ],
+                    [
+                        -85.40017370799995,
+                        40.15003741100003
+                    ],
+                    [
+                        -85.40021648599998,
+                        40.15277179700007
+                    ],
+                    [
+                        -85.40025721499995,
+                        40.15537496200005
+                    ],
+                    [
+                        -85.40027593399998,
+                        40.15657137100004
+                    ],
+                    [
+                        -85.39548514099994,
+                        40.15655151500005
+                    ],
+                    [
+                        -85.39545368099994,
+                        40.15292163600003
+                    ],
+                    [
+                        -85.39543289199997,
+                        40.150521731000026
+                    ],
+                    [
+                        -85.39542245099994,
+                        40.149317127000074
+                    ],
+                    [
+                        -85.39542222299997,
+                        40.149291754000046
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 5201,
+        "name": "New Haven Site",
+        "loc": "Allen County, IN",
+        "lat": 41.082515,
+        "lon": -84.967725,
+        "acreage": 145,
+        "domains": {
+            "environment": 5.0,
+            "transportation": 4.9,
+            "energy": 4.7,
+            "social": 5.0
+        },
+        "crit": {
+            "interstate": {
+                "s": 5,
+                "m": "1.1 mi"
+            },
+            "principal_arterial": {
+                "s": 5,
+                "m": "0.7 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "1.5 mi"
+            },
+            "major_collector": {
+                "s": 4,
+                "m": "1.1 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.1 mi"
+            },
+            "gas_pipeline": {
+                "s": 4,
+                "m": "2.5 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "0.9 %"
+            },
+            "slope": {
+                "s": 5,
+                "m": "0.4 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "7.2 mi"
+            },
+            "school": {
+                "s": 5,
+                "m": "2.2 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -84.96347384799998,
+                        41.085919094000076
+                    ],
+                    [
+                        -84.96347161899996,
+                        41.08587796200004
+                    ],
+                    [
+                        -84.96310909299996,
+                        41.08588741300008
+                    ],
+                    [
+                        -84.96281604499995,
+                        41.08047659400006
+                    ],
+                    [
+                        -84.96497359399996,
+                        41.07954982500007
+                    ],
+                    [
+                        -84.96497774799997,
+                        41.07954803900003
+                    ],
+                    [
+                        -84.96691445399995,
+                        41.078716118000045
+                    ],
+                    [
+                        -84.96695541899999,
+                        41.078698521000035
+                    ],
+                    [
+                        -84.96708506299996,
+                        41.07864282300005
+                    ],
+                    [
+                        -84.97063377599994,
+                        41.078546334000066
+                    ],
+                    [
+                        -84.97063734699998,
+                        41.07861489600003
+                    ],
+                    [
+                        -84.97068657499995,
+                        41.07955990800008
+                    ],
+                    [
+                        -84.97212921999994,
+                        41.07952065400008
+                    ],
+                    [
+                        -84.97213404899998,
+                        41.07952052300004
+                    ],
+                    [
+                        -84.97226235799997,
+                        41.081749925000054
+                    ],
+                    [
+                        -84.97228465399996,
+                        41.082137000000046
+                    ],
+                    [
+                        -84.97247561899997,
+                        41.085454569000035
+                    ],
+                    [
+                        -84.97248893399995,
+                        41.08568588300005
+                    ],
+                    [
+                        -84.97248972399996,
+                        41.085699601000044
+                    ],
+                    [
+                        -84.97249132299999,
+                        41.085754476000034
+                    ],
+                    [
+                        -84.97082080299998,
+                        41.085797745000036
+                    ],
+                    [
+                        -84.96991447699997,
+                        41.08582121000006
+                    ],
+                    [
+                        -84.96770572299994,
+                        41.08587836600003
+                    ],
+                    [
+                        -84.96559803999997,
+                        41.08593286100006
+                    ],
+                    [
+                        -84.96531959399994,
+                        41.08594005800006
+                    ],
+                    [
+                        -84.96469170999995,
+                        41.085956284000076
+                    ],
+                    [
+                        -84.96347756199998,
+                        41.08598765200003
+                    ],
+                    [
+                        -84.96347384799998,
+                        41.085919094000076
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 3757,
+        "name": "Chatham-Siler City Advanced Manufacturing Site",
+        "loc": "Chatham County, NC",
+        "lat": 35.758824,
+        "lon": -79.529386,
+        "acreage": 1350,
+        "domains": {
+            "environment": 4.4,
+            "transportation": 2.6,
+            "energy": 3.8,
+            "social": 4.9
+        },
+        "crit": {
+            "interstate": {
+                "s": 2,
+                "m": "16.2 mi"
+            },
+            "principal_arterial": {
+                "s": 2,
+                "m": "19.4 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.6 mi"
+            },
+            "major_collector": {
+                "s": 3,
+                "m": "3.9 mi"
+            },
+            "transmission": {
+                "s": 4,
+                "m": "0.3 mi"
+            },
+            "gas_pipeline": {
+                "s": 2,
+                "m": "6.2 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.4 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "1.6 %"
+            },
+            "slope": {
+                "s": 3,
+                "m": "6.0 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "6.6 mi"
+            },
+            "school": {
+                "s": 5,
+                "m": "2.9 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "1"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -79.52637184099996,
+                        35.77024817800003
+                    ],
+                    [
+                        -79.52761703699997,
+                        35.76835145300004
+                    ],
+                    [
+                        -79.52863017999994,
+                        35.76855199500005
+                    ],
+                    [
+                        -79.52975617699997,
+                        35.76703773600008
+                    ],
+                    [
+                        -79.52956935599997,
+                        35.766997622000076
+                    ],
+                    [
+                        -79.52866787499994,
+                        35.766804051000065
+                    ],
+                    [
+                        -79.52841909199998,
+                        35.76633136600003
+                    ],
+                    [
+                        -79.52798742099998,
+                        35.765511177000064
+                    ],
+                    [
+                        -79.52794564399994,
+                        35.76543050300006
+                    ],
+                    [
+                        -79.52806183099995,
+                        35.76492759400003
+                    ],
+                    [
+                        -79.52779695799995,
+                        35.76493021400006
+                    ],
+                    [
+                        -79.52605321099998,
+                        35.76494744800004
+                    ],
+                    [
+                        -79.52571929399994,
+                        35.76495074600007
+                    ],
+                    [
+                        -79.52361889599996,
+                        35.76495155200007
+                    ],
+                    [
+                        -79.52347078599996,
+                        35.76495173200004
+                    ],
+                    [
+                        -79.52346851399994,
+                        35.76495173600006
+                    ],
+                    [
+                        -79.52290427199995,
+                        35.76495242300007
+                    ],
+                    [
+                        -79.52287323299998,
+                        35.764952453000035
+                    ],
+                    [
+                        -79.52233915199997,
+                        35.76495295500007
+                    ],
+                    [
+                        -79.52077152099997,
+                        35.76495441800006
+                    ],
+                    [
+                        -79.52053580899997,
+                        35.76172987700005
+                    ],
+                    [
+                        -79.52049393399994,
+                        35.76175429800003
+                    ],
+                    [
+                        -79.52034068499995,
+                        35.761843672000055
+                    ],
+                    [
+                        -79.51789312699998,
+                        35.76327102500005
+                    ],
+                    [
+                        -79.51743545399995,
+                        35.76396942500003
+                    ],
+                    [
+                        -79.51651509699997,
+                        35.76461121700004
+                    ],
+                    [
+                        -79.51641702899997,
+                        35.76673828700007
+                    ],
+                    [
+                        -79.51641643399995,
+                        35.76675118400004
+                    ],
+                    [
+                        -79.51640998399995,
+                        35.76675531600006
+                    ],
+                    [
+                        -79.51477567499995,
+                        35.76780211800008
+                    ],
+                    [
+                        -79.51443940099995,
+                        35.767530882000074
+                    ],
+                    [
+                        -79.51277215799996,
+                        35.76613139600005
+                    ],
+                    [
+                        -79.51256851799997,
+                        35.765952206000065
+                    ],
+                    [
+                        -79.51233120799998,
+                        35.765743386000054
+                    ],
+                    [
+                        -79.51173021699998,
+                        35.76510800300008
+                    ],
+                    [
+                        -79.51133827799998,
+                        35.764574553000045
+                    ],
+                    [
+                        -79.51040538399997,
+                        35.76351616100004
+                    ],
+                    [
+                        -79.50943389799994,
+                        35.76236183900005
+                    ],
+                    [
+                        -79.50796955399994,
+                        35.76061944300005
+                    ],
+                    [
+                        -79.50826081799994,
+                        35.76044486600006
+                    ],
+                    [
+                        -79.50855720299995,
+                        35.760388689000024
+                    ],
+                    [
+                        -79.50877208299994,
+                        35.759876063000036
+                    ],
+                    [
+                        -79.50937401799996,
+                        35.75964516100004
+                    ],
+                    [
+                        -79.50937977299998,
+                        35.75919319500008
+                    ],
+                    [
+                        -79.51016356299994,
+                        35.758876421000025
+                    ],
+                    [
+                        -79.51023848999995,
+                        35.75828519000004
+                    ],
+                    [
+                        -79.51057678699993,
+                        35.75806453900003
+                    ],
+                    [
+                        -79.51068629699995,
+                        35.757403675000035
+                    ],
+                    [
+                        -79.51101750099997,
+                        35.756897019000064
+                    ],
+                    [
+                        -79.51121600499994,
+                        35.75629864300004
+                    ],
+                    [
+                        -79.51118279799994,
+                        35.75525250800007
+                    ],
+                    [
+                        -79.51118208499997,
+                        35.75523006200007
+                    ],
+                    [
+                        -79.51307696499998,
+                        35.755166975000066
+                    ],
+                    [
+                        -79.51308769799994,
+                        35.75433978500007
+                    ],
+                    [
+                        -79.50834610899994,
+                        35.75457365300008
+                    ],
+                    [
+                        -79.50832057199995,
+                        35.75415153900008
+                    ],
+                    [
+                        -79.50763463399994,
+                        35.75420726200008
+                    ],
+                    [
+                        -79.50689080799998,
+                        35.753917761000025
+                    ],
+                    [
+                        -79.50686295999998,
+                        35.753906923000045
+                    ],
+                    [
+                        -79.50688568299995,
+                        35.75388091900004
+                    ],
+                    [
+                        -79.50694549899998,
+                        35.753814943000066
+                    ],
+                    [
+                        -79.50700946199998,
+                        35.75374721900005
+                    ],
+                    [
+                        -79.50715103899995,
+                        35.75360510200005
+                    ],
+                    [
+                        -79.50715107899998,
+                        35.753605063000066
+                    ],
+                    [
+                        -79.50721007799996,
+                        35.753599930000064
+                    ],
+                    [
+                        -79.50893026999995,
+                        35.75345027000003
+                    ],
+                    [
+                        -79.50950577799995,
+                        35.75340019400005
+                    ],
+                    [
+                        -79.50953742099995,
+                        35.75339813100004
+                    ],
+                    [
+                        -79.50954120599994,
+                        35.75339788400004
+                    ],
+                    [
+                        -79.51310292899996,
+                        35.753165790000025
+                    ],
+                    [
+                        -79.51310716799998,
+                        35.75283901800003
+                    ],
+                    [
+                        -79.51311755299997,
+                        35.752038568000046
+                    ],
+                    [
+                        -79.51315135199997,
+                        35.752049198000066
+                    ],
+                    [
+                        -79.51454911499997,
+                        35.75248877200005
+                    ],
+                    [
+                        -79.51747238699994,
+                        35.75263624100006
+                    ],
+                    [
+                        -79.51809219799998,
+                        35.75220547200007
+                    ],
+                    [
+                        -79.51809242499996,
+                        35.75220531400004
+                    ],
+                    [
+                        -79.51990692499999,
+                        35.75094418700007
+                    ],
+                    [
+                        -79.52128511999996,
+                        35.74998626100006
+                    ],
+                    [
+                        -79.52539567399998,
+                        35.74940560600004
+                    ],
+                    [
+                        -79.52547944399998,
+                        35.749799626000026
+                    ],
+                    [
+                        -79.52607950699996,
+                        35.74985432900007
+                    ],
+                    [
+                        -79.52608026099995,
+                        35.749854398000025
+                    ],
+                    [
+                        -79.52613095799995,
+                        35.74985902100008
+                    ],
+                    [
+                        -79.52613100199994,
+                        35.74985901600007
+                    ],
+                    [
+                        -79.52617320599995,
+                        35.74985388300007
+                    ],
+                    [
+                        -79.52617750899998,
+                        35.74985336000003
+                    ],
+                    [
+                        -79.52706904299998,
+                        35.749744933000045
+                    ],
+                    [
+                        -79.52706908699997,
+                        35.74974492800004
+                    ],
+                    [
+                        -79.52714038199997,
+                        35.74973625700005
+                    ],
+                    [
+                        -79.52770865099995,
+                        35.74966714300007
+                    ],
+                    [
+                        -79.52945187999995,
+                        35.75400899500005
+                    ],
+                    [
+                        -79.53463234599997,
+                        35.75262678300004
+                    ],
+                    [
+                        -79.53364656999997,
+                        35.750171419000026
+                    ],
+                    [
+                        -79.53456481099994,
+                        35.75017890000004
+                    ],
+                    [
+                        -79.53601814399997,
+                        35.74993419500004
+                    ],
+                    [
+                        -79.53694344799999,
+                        35.74909382900006
+                    ],
+                    [
+                        -79.53791240199996,
+                        35.749063455000055
+                    ],
+                    [
+                        -79.53794078499999,
+                        35.74842811800005
+                    ],
+                    [
+                        -79.53795352299994,
+                        35.748234369000045
+                    ],
+                    [
+                        -79.53797439999994,
+                        35.748041089000026
+                    ],
+                    [
+                        -79.53800339199995,
+                        35.74784850700007
+                    ],
+                    [
+                        -79.53804046499994,
+                        35.74765684800008
+                    ],
+                    [
+                        -79.53808557499997,
+                        35.74746633700005
+                    ],
+                    [
+                        -79.53813866899998,
+                        35.74727719900005
+                    ],
+                    [
+                        -79.53819968499994,
+                        35.74708965600007
+                    ],
+                    [
+                        -79.53826855099999,
+                        35.74690392800005
+                    ],
+                    [
+                        -79.53834518499997,
+                        35.746720233000076
+                    ],
+                    [
+                        -79.53842949799997,
+                        35.746538788000066
+                    ],
+                    [
+                        -79.53870559399996,
+                        35.74597403000007
+                    ],
+                    [
+                        -79.53870562699996,
+                        35.74597396200005
+                    ],
+                    [
+                        -79.53969093199998,
+                        35.74395861600004
+                    ],
+                    [
+                        -79.53969097099997,
+                        35.743958528000064
+                    ],
+                    [
+                        -79.54079081499998,
+                        35.74151369900005
+                    ],
+                    [
+                        -79.54121102699997,
+                        35.741629319000026
+                    ],
+                    [
+                        -79.54121134199994,
+                        35.74162940600007
+                    ],
+                    [
+                        -79.54118898299998,
+                        35.741996494000034
+                    ],
+                    [
+                        -79.54110021699995,
+                        35.74345382700005
+                    ],
+                    [
+                        -79.54106755699996,
+                        35.74400151100008
+                    ],
+                    [
+                        -79.54011943299997,
+                        35.74397190800005
+                    ],
+                    [
+                        -79.54011938899998,
+                        35.74397190600007
+                    ],
+                    [
+                        -79.53939732199996,
+                        35.74544899400007
+                    ],
+                    [
+                        -79.53926443699999,
+                        35.74572082000003
+                    ],
+                    [
+                        -79.53926439399999,
+                        35.745720910000045
+                    ],
+                    [
+                        -79.53913572199997,
+                        35.745984117000035
+                    ],
+                    [
+                        -79.53913598899999,
+                        35.74598412300003
+                    ],
+                    [
+                        -79.54584003999997,
+                        35.74614222400004
+                    ],
+                    [
+                        -79.54607400699996,
+                        35.746165768000026
+                    ],
+                    [
+                        -79.54686013699995,
+                        35.74617838100005
+                    ],
+                    [
+                        -79.54686771999997,
+                        35.74617851900007
+                    ],
+                    [
+                        -79.54681977799999,
+                        35.746377575000054
+                    ],
+                    [
+                        -79.54676255799995,
+                        35.746705285000075
+                    ],
+                    [
+                        -79.54670823199996,
+                        35.74726393200007
+                    ],
+                    [
+                        -79.54662297799996,
+                        35.74811376800005
+                    ],
+                    [
+                        -79.54654817399995,
+                        35.74901403900003
+                    ],
+                    [
+                        -79.54653872799997,
+                        35.749356816000045
+                    ],
+                    [
+                        -79.54654057699997,
+                        35.74951615500004
+                    ],
+                    [
+                        -79.54655194099996,
+                        35.749701723000044
+                    ],
+                    [
+                        -79.54655785899996,
+                        35.74989178000004
+                    ],
+                    [
+                        -79.54655328499996,
+                        35.750212556000065
+                    ],
+                    [
+                        -79.54653445399998,
+                        35.75048085200007
+                    ],
+                    [
+                        -79.54648638099997,
+                        35.75053638800006
+                    ],
+                    [
+                        -79.54644581899998,
+                        35.75058121400008
+                    ],
+                    [
+                        -79.54639381299995,
+                        35.75061579000004
+                    ],
+                    [
+                        -79.54633884399993,
+                        35.75064831800006
+                    ],
+                    [
+                        -79.54628383899995,
+                        35.75068084600008
+                    ],
+                    [
+                        -79.54623567999994,
+                        35.75071849500006
+                    ],
+                    [
+                        -79.54620018699995,
+                        35.75076536000006
+                    ],
+                    [
+                        -79.54615919699995,
+                        35.75080915800004
+                    ],
+                    [
+                        -79.54610464899997,
+                        35.75084168400008
+                    ],
+                    [
+                        -79.54603392299998,
+                        35.75084921300004
+                    ],
+                    [
+                        -79.54597274099996,
+                        35.75083506400006
+                    ],
+                    [
+                        -79.54594375999994,
+                        35.75078574100007
+                    ],
+                    [
+                        -79.54592442699999,
+                        35.75073019400003
+                    ],
+                    [
+                        -79.54589756299998,
+                        35.750682264000034
+                    ],
+                    [
+                        -79.54585235199994,
+                        35.75066251900006
+                    ],
+                    [
+                        -79.54550591799995,
+                        35.75064339900007
+                    ],
+                    [
+                        -79.54534294299998,
+                        35.75283858000006
+                    ],
+                    [
+                        -79.54522561699997,
+                        35.752840691000074
+                    ],
+                    [
+                        -79.54488122099997,
+                        35.752846885000054
+                    ],
+                    [
+                        -79.54488805499994,
+                        35.753101798000046
+                    ],
+                    [
+                        -79.54488811699997,
+                        35.753104102000066
+                    ],
+                    [
+                        -79.54489754099995,
+                        35.75345528500003
+                    ],
+                    [
+                        -79.54491350699999,
+                        35.75405107900008
+                    ],
+                    [
+                        -79.54492507499998,
+                        35.75429969100003
+                    ],
+                    [
+                        -79.54493487699995,
+                        35.75451039200004
+                    ],
+                    [
+                        -79.54521790099994,
+                        35.754525106000074
+                    ],
+                    [
+                        -79.54570913999999,
+                        35.75455064400006
+                    ],
+                    [
+                        -79.54579121999996,
+                        35.754554910000024
+                    ],
+                    [
+                        -79.54556230399999,
+                        35.75648733300005
+                    ],
+                    [
+                        -79.54514355299995,
+                        35.75646805300005
+                    ],
+                    [
+                        -79.54512230899996,
+                        35.75722010000004
+                    ],
+                    [
+                        -79.54512267699994,
+                        35.757223218000036
+                    ],
+                    [
+                        -79.54552769399999,
+                        35.75724196900006
+                    ],
+                    [
+                        -79.54588418999998,
+                        35.75725308500006
+                    ],
+                    [
+                        -79.54659470099995,
+                        35.757274446000054
+                    ],
+                    [
+                        -79.54835246499994,
+                        35.75732730100003
+                    ],
+                    [
+                        -79.54832816899994,
+                        35.75773144400006
+                    ],
+                    [
+                        -79.54832474699998,
+                        35.75778606400007
+                    ],
+                    [
+                        -79.54832174999996,
+                        35.75784119600007
+                    ],
+                    [
+                        -79.54831871699997,
+                        35.75789615700006
+                    ],
+                    [
+                        -79.54831575399999,
+                        35.75795111800005
+                    ],
+                    [
+                        -79.54831275299995,
+                        35.75800573500004
+                    ],
+                    [
+                        -79.54830933499994,
+                        35.75806089800005
+                    ],
+                    [
+                        -79.54830633699999,
+                        35.758115830000065
+                    ],
+                    [
+                        -79.54829991899999,
+                        35.75822575300003
+                    ],
+                    [
+                        -79.54829692099997,
+                        35.75828071400008
+                    ],
+                    [
+                        -79.54829641899994,
+                        35.758289588000025
+                    ],
+                    [
+                        -79.54829392299996,
+                        35.75833570300006
+                    ],
+                    [
+                        -79.54829050099994,
+                        35.75839032300007
+                    ],
+                    [
+                        -79.54827766599999,
+                        35.758610169000065
+                    ],
+                    [
+                        -79.54827424499996,
+                        35.75866496000003
+                    ],
+                    [
+                        -79.54827124699995,
+                        35.75871992100008
+                    ],
+                    [
+                        -79.54826056599995,
+                        35.75888463900003
+                    ],
+                    [
+                        -79.54825756499997,
+                        35.758939257000065
+                    ],
+                    [
+                        -79.54825529299995,
+                        35.758971892000034
+                    ],
+                    [
+                        -79.54661892799999,
+                        35.75922353300007
+                    ],
+                    [
+                        -79.54663298699995,
+                        35.75945960000007
+                    ],
+                    [
+                        -79.54662711899994,
+                        35.759460542000056
+                    ],
+                    [
+                        -79.54627783199999,
+                        35.759515855000075
+                    ],
+                    [
+                        -79.54588725199994,
+                        35.75957787600004
+                    ],
+                    [
+                        -79.54547727599999,
+                        35.75964293100003
+                    ],
+                    [
+                        -79.54540954899994,
+                        35.75965368000004
+                    ],
+                    [
+                        -79.54505260599996,
+                        35.75968722700003
+                    ],
+                    [
+                        -79.54482789399998,
+                        35.75968142500005
+                    ],
+                    [
+                        -79.54484059599997,
+                        35.76014702400005
+                    ],
+                    [
+                        -79.54503468799999,
+                        35.76032144000004
+                    ],
+                    [
+                        -79.54499110799998,
+                        35.761858507000056
+                    ],
+                    [
+                        -79.54497394499998,
+                        35.76246300300005
+                    ],
+                    [
+                        -79.54485963499997,
+                        35.76651146800003
+                    ],
+                    [
+                        -79.54247820599994,
+                        35.766383905000055
+                    ],
+                    [
+                        -79.54263782899994,
+                        35.76269102400005
+                    ],
+                    [
+                        -79.53932199199994,
+                        35.762542445000065
+                    ],
+                    [
+                        -79.53833135599996,
+                        35.762498039000036
+                    ],
+                    [
+                        -79.53849593299998,
+                        35.76200388600006
+                    ],
+                    [
+                        -79.53744710999996,
+                        35.76197747300006
+                    ],
+                    [
+                        -79.53721343599994,
+                        35.764605251000035
+                    ],
+                    [
+                        -79.53211120399999,
+                        35.76433890200008
+                    ],
+                    [
+                        -79.53196087699996,
+                        35.76726329100006
+                    ],
+                    [
+                        -79.53193701399994,
+                        35.76921028400005
+                    ],
+                    [
+                        -79.53070908099994,
+                        35.76929629500006
+                    ],
+                    [
+                        -79.53040925599998,
+                        35.769326998000054
+                    ],
+                    [
+                        -79.52995613299998,
+                        35.76937073100004
+                    ],
+                    [
+                        -79.52964921499995,
+                        35.76939926400007
+                    ],
+                    [
+                        -79.52976599999994,
+                        35.77021976200007
+                    ],
+                    [
+                        -79.52956503199994,
+                        35.77022276900004
+                    ],
+                    [
+                        -79.52932588499993,
+                        35.77022579000004
+                    ],
+                    [
+                        -79.52904789699994,
+                        35.770228788000054
+                    ],
+                    [
+                        -79.52873934299998,
+                        35.77023172400004
+                    ],
+                    [
+                        -79.52841100199998,
+                        35.77023455200003
+                    ],
+                    [
+                        -79.52807365399997,
+                        35.77023722900003
+                    ],
+                    [
+                        -79.52773807799997,
+                        35.770239711000045
+                    ],
+                    [
+                        -79.52741505199998,
+                        35.77024195400003
+                    ],
+                    [
+                        -79.52711535299994,
+                        35.77024391300006
+                    ],
+                    [
+                        -79.52684976299997,
+                        35.77024554500008
+                    ],
+                    [
+                        -79.52662645599997,
+                        35.77024682700005
+                    ],
+                    [
+                        -79.52644319999996,
+                        35.77024781100005
+                    ],
+                    [
+                        -79.52637184099996,
+                        35.77024817800003
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 2865,
+        "name": "London-Eagleton Industrial South Site",
+        "loc": "Madison County, OH",
+        "lat": 39.896842,
+        "lon": -83.401095,
+        "acreage": 120,
+        "domains": {
+            "environment": 4.6,
+            "transportation": 3.6,
+            "energy": 4.3,
+            "social": 5.0
+        },
+        "crit": {
+            "interstate": {
+                "s": 4,
+                "m": "3.5 mi"
+            },
+            "principal_arterial": {
+                "s": 2,
+                "m": "18.5 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "1.3 mi"
+            },
+            "major_collector": {
+                "s": 4,
+                "m": "1.3 mi"
+            },
+            "transmission": {
+                "s": 4,
+                "m": "0.4 mi"
+            },
+            "gas_pipeline": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 4,
+                "m": "3.4 %"
+            },
+            "slope": {
+                "s": 4,
+                "m": "2.5 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "2.5 mi"
+            },
+            "school": {
+                "s": 5,
+                "m": "2.1 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -83.40147127299997,
+                        39.89542374800004
+                    ],
+                    [
+                        -83.39963826999997,
+                        39.89391898100007
+                    ],
+                    [
+                        -83.39936148499999,
+                        39.893966327000044
+                    ],
+                    [
+                        -83.39707195799997,
+                        39.89435793900003
+                    ],
+                    [
+                        -83.39871496199999,
+                        39.893369816000074
+                    ],
+                    [
+                        -83.39934884999997,
+                        39.89298857500006
+                    ],
+                    [
+                        -83.40017044699994,
+                        39.89249442900007
+                    ],
+                    [
+                        -83.40196072799995,
+                        39.89170805100008
+                    ],
+                    [
+                        -83.40326691999996,
+                        39.89287915400007
+                    ],
+                    [
+                        -83.40615735099999,
+                        39.89538929100007
+                    ],
+                    [
+                        -83.40703732999998,
+                        39.896153421000065
+                    ],
+                    [
+                        -83.40659917999994,
+                        39.89692807500006
+                    ],
+                    [
+                        -83.39685575699997,
+                        39.90029898800003
+                    ],
+                    [
+                        -83.39617510199997,
+                        39.898695291000024
+                    ],
+                    [
+                        -83.39460652899999,
+                        39.89574708500004
+                    ],
+                    [
+                        -83.40020918599998,
+                        39.89548322400003
+                    ],
+                    [
+                        -83.40147127299997,
+                        39.89542374800004
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 4074,
+        "name": "Riverroad Site",
+        "loc": "Berks County, PA",
+        "lat": 40.344594,
+        "lon": -75.946402,
+        "acreage": 54,
+        "domains": {
+            "environment": 4.2,
+            "transportation": 4.5,
+            "energy": 5.0,
+            "social": 2.6
+        },
+        "crit": {
+            "interstate": {
+                "s": 4,
+                "m": "3.4 mi"
+            },
+            "principal_arterial": {
+                "s": 5,
+                "m": "0.2 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.2 mi"
+            },
+            "major_collector": {
+                "s": 4,
+                "m": "0.6 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.1 mi"
+            },
+            "gas_pipeline": {
+                "s": 5,
+                "m": "0.1 mi"
+            },
+            "floodplain_100": {
+                "s": 5,
+                "m": "3.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "5.4 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.1 %"
+            },
+            "wet_water": {
+                "s": 5,
+                "m": "1.0 %"
+            },
+            "slope": {
+                "s": 3,
+                "m": "7.5 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 3,
+                "m": "0.8 mi"
+            },
+            "school": {
+                "s": 1,
+                "m": "0.1 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -75.94683563099994,
+                        40.34766687300004
+                    ],
+                    [
+                        -75.94628958799996,
+                        40.34670016700005
+                    ],
+                    [
+                        -75.94520270299995,
+                        40.34705953400004
+                    ],
+                    [
+                        -75.94423561599996,
+                        40.345347297000046
+                    ],
+                    [
+                        -75.94420115799994,
+                        40.34526899000008
+                    ],
+                    [
+                        -75.94323521099994,
+                        40.343556697000054
+                    ],
+                    [
+                        -75.94318426399997,
+                        40.34348371800007
+                    ],
+                    [
+                        -75.94302071499999,
+                        40.34319377800006
+                    ],
+                    [
+                        -75.94246046099994,
+                        40.343379077000066
+                    ],
+                    [
+                        -75.94217953099997,
+                        40.34288147700005
+                    ],
+                    [
+                        -75.94209389799994,
+                        40.34290978000007
+                    ],
+                    [
+                        -75.94211050099995,
+                        40.34293919000004
+                    ],
+                    [
+                        -75.94169879799995,
+                        40.34307526500004
+                    ],
+                    [
+                        -75.94133645699998,
+                        40.34243344400005
+                    ],
+                    [
+                        -75.94181049199995,
+                        40.34236958400004
+                    ],
+                    [
+                        -75.94244282499994,
+                        40.34230959100006
+                    ],
+                    [
+                        -75.94277446999996,
+                        40.34224253000008
+                    ],
+                    [
+                        -75.94360143199998,
+                        40.342071445000045
+                    ],
+                    [
+                        -75.94571865599994,
+                        40.34146127500003
+                    ],
+                    [
+                        -75.94636777999995,
+                        40.34261061500007
+                    ],
+                    [
+                        -75.94656406399997,
+                        40.34254571300005
+                    ],
+                    [
+                        -75.94681608599996,
+                        40.34267830500005
+                    ],
+                    [
+                        -75.94693115999996,
+                        40.34274233700006
+                    ],
+                    [
+                        -75.94704170199998,
+                        40.34281088500006
+                    ],
+                    [
+                        -75.94714740999996,
+                        40.34288376000006
+                    ],
+                    [
+                        -75.94724799499994,
+                        40.342960763000065
+                    ],
+                    [
+                        -75.94734318099995,
+                        40.34304168500006
+                    ],
+                    [
+                        -75.94743270999999,
+                        40.343126304000066
+                    ],
+                    [
+                        -75.94751633399994,
+                        40.343214389000025
+                    ],
+                    [
+                        -75.94759382599995,
+                        40.34330569700006
+                    ],
+                    [
+                        -75.94766497499995,
+                        40.34339998000007
+                    ],
+                    [
+                        -75.94776580299998,
+                        40.34355672300006
+                    ],
+                    [
+                        -75.94785840199995,
+                        40.34371641200005
+                    ],
+                    [
+                        -75.94794262699997,
+                        40.343878792000055
+                    ],
+                    [
+                        -75.94801676099996,
+                        40.34403756100005
+                    ],
+                    [
+                        -75.94808360799993,
+                        40.34419821200004
+                    ],
+                    [
+                        -75.94814308599996,
+                        40.34436055100008
+                    ],
+                    [
+                        -75.94819512499998,
+                        40.34452438000005
+                    ],
+                    [
+                        -75.94823965899997,
+                        40.34468949800004
+                    ],
+                    [
+                        -75.94827663399997,
+                        40.344855704000054
+                    ],
+                    [
+                        -75.94830600599994,
+                        40.34502279700007
+                    ],
+                    [
+                        -75.94832773799999,
+                        40.345190572000035
+                    ],
+                    [
+                        -75.94834180399994,
+                        40.34535882400007
+                    ],
+                    [
+                        -75.94834818699997,
+                        40.34552735200003
+                    ],
+                    [
+                        -75.94834687899998,
+                        40.345695945000045
+                    ],
+                    [
+                        -75.94833945399995,
+                        40.34584297300006
+                    ],
+                    [
+                        -75.94815905599995,
+                        40.345902624000075
+                    ],
+                    [
+                        -75.94818138999995,
+                        40.34607465700003
+                    ],
+                    [
+                        -75.94819071499995,
+                        40.34618827300005
+                    ],
+                    [
+                        -75.94819164399996,
+                        40.34630211100006
+                    ],
+                    [
+                        -75.94818417399995,
+                        40.346415808000074
+                    ],
+                    [
+                        -75.94790970999998,
+                        40.34655047200005
+                    ],
+                    [
+                        -75.94787849499994,
+                        40.34670398000003
+                    ],
+                    [
+                        -75.94781803299998,
+                        40.34684142700007
+                    ],
+                    [
+                        -75.94775959599997,
+                        40.346959549000076
+                    ],
+                    [
+                        -75.94770530199997,
+                        40.34705764100005
+                    ],
+                    [
+                        -75.94767202199995,
+                        40.34713522700008
+                    ],
+                    [
+                        -75.94763091099998,
+                        40.34721058500003
+                    ],
+                    [
+                        -75.94758222399997,
+                        40.34728325100008
+                    ],
+                    [
+                        -75.94752625699994,
+                        40.34735278100004
+                    ],
+                    [
+                        -75.94746335199994,
+                        40.34741874800005
+                    ],
+                    [
+                        -75.94735382299996,
+                        40.34752258000003
+                    ],
+                    [
+                        -75.94724194499997,
+                        40.34762493300008
+                    ],
+                    [
+                        -75.94708274799996,
+                        40.34776413800006
+                    ],
+                    [
+                        -75.94689253599995,
+                        40.34792280900007
+                    ],
+                    [
+                        -75.94672404799996,
+                        40.348055438000074
+                    ],
+                    [
+                        -75.94652322699994,
+                        40.34820628700004
+                    ],
+                    [
+                        -75.94639587599994,
+                        40.348297444000025
+                    ],
+                    [
+                        -75.94626646299997,
+                        40.34838688700006
+                    ],
+                    [
+                        -75.94603754199994,
+                        40.34853767800007
+                    ],
+                    [
+                        -75.94592608299996,
+                        40.34834034800008
+                    ],
+                    [
+                        -75.94605448599998,
+                        40.34825545900003
+                    ],
+                    [
+                        -75.94618093399998,
+                        40.34816886900006
+                    ],
+                    [
+                        -75.94630538799998,
+                        40.34808060200004
+                    ],
+                    [
+                        -75.94642780699996,
+                        40.34799068700005
+                    ],
+                    [
+                        -75.94654815799998,
+                        40.34789915300007
+                    ],
+                    [
+                        -75.94666640099996,
+                        40.34780602400008
+                    ],
+                    [
+                        -75.94683563099994,
+                        40.34766687300004
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 5203,
+        "name": "Snelgrove Site",
+        "loc": "Orangeburg County, SC",
+        "lat": 33.386808,
+        "lon": -80.845373,
+        "acreage": 393,
+        "domains": {
+            "environment": 3.4,
+            "transportation": 2.6,
+            "energy": 4.8,
+            "social": 5.0
+        },
+        "crit": {
+            "interstate": {
+                "s": 3,
+                "m": "7.6 mi"
+            },
+            "principal_arterial": {
+                "s": 1,
+                "m": "43.6 mi"
+            },
+            "minor_arterial": {
+                "s": 3,
+                "m": "5.6 mi"
+            },
+            "major_collector": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "gas_pipeline": {
+                "s": 4,
+                "m": "0.9 mi"
+            },
+            "floodplain_100": {
+                "s": 2,
+                "m": "31.0 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 1,
+                "m": "31.2 %"
+            },
+            "slope": {
+                "s": 5,
+                "m": "1.8 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "10.0 mi"
+            },
+            "school": {
+                "s": 5,
+                "m": "4.9 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -80.83996517199995,
+                        33.39384712300006
+                    ],
+                    [
+                        -80.83963881899996,
+                        33.391822956000055
+                    ],
+                    [
+                        -80.83949934699996,
+                        33.39091801100005
+                    ],
+                    [
+                        -80.83949685599998,
+                        33.39090184400004
+                    ],
+                    [
+                        -80.83948845299994,
+                        33.390847321000024
+                    ],
+                    [
+                        -80.83948674399994,
+                        33.39083623200003
+                    ],
+                    [
+                        -80.83948397999995,
+                        33.390818300000035
+                    ],
+                    [
+                        -80.83947571199997,
+                        33.39076376200006
+                    ],
+                    [
+                        -80.83919217999994,
+                        33.38892442300005
+                    ],
+                    [
+                        -80.83918403799998,
+                        33.388871573000074
+                    ],
+                    [
+                        -80.83917854999999,
+                        33.38883595000004
+                    ],
+                    [
+                        -80.83917665499996,
+                        33.38882366100006
+                    ],
+                    [
+                        -80.83916819999996,
+                        33.38876883700004
+                    ],
+                    [
+                        -80.83914126099995,
+                        33.38859407000007
+                    ],
+                    [
+                        -80.83912676999995,
+                        33.38850182300007
+                    ],
+                    [
+                        -80.83909754999996,
+                        33.38831051100004
+                    ],
+                    [
+                        -80.83876206299999,
+                        33.38613393900005
+                    ],
+                    [
+                        -80.83868782099995,
+                        33.38566960300005
+                    ],
+                    [
+                        -80.83867900599995,
+                        33.38561441200005
+                    ],
+                    [
+                        -80.83862821399998,
+                        33.385296708000055
+                    ],
+                    [
+                        -80.83849201999999,
+                        33.384444744000064
+                    ],
+                    [
+                        -80.83843435599994,
+                        33.38408403300008
+                    ],
+                    [
+                        -80.83824478799994,
+                        33.38289570100005
+                    ],
+                    [
+                        -80.83853472999994,
+                        33.38288637900007
+                    ],
+                    [
+                        -80.83857150699998,
+                        33.38276323300005
+                    ],
+                    [
+                        -80.83894003199998,
+                        33.38246097800004
+                    ],
+                    [
+                        -80.83909740999997,
+                        33.382318088000034
+                    ],
+                    [
+                        -80.83934128899995,
+                        33.382193925000024
+                    ],
+                    [
+                        -80.83952884499996,
+                        33.38202685400006
+                    ],
+                    [
+                        -80.84163525999998,
+                        33.38190347700004
+                    ],
+                    [
+                        -80.84494065299998,
+                        33.38204575900005
+                    ],
+                    [
+                        -80.84544297199994,
+                        33.38206736800004
+                    ],
+                    [
+                        -80.84737245799994,
+                        33.381622003000075
+                    ],
+                    [
+                        -80.85255413699997,
+                        33.38005913300003
+                    ],
+                    [
+                        -80.85508590799998,
+                        33.37929543200005
+                    ],
+                    [
+                        -80.85501898399997,
+                        33.37946146400003
+                    ],
+                    [
+                        -80.85367088799995,
+                        33.38250116700004
+                    ],
+                    [
+                        -80.84970183999997,
+                        33.39187188600005
+                    ],
+                    [
+                        -80.84917887799998,
+                        33.39193534000003
+                    ],
+                    [
+                        -80.84896871799998,
+                        33.391378804000055
+                    ],
+                    [
+                        -80.84828183099995,
+                        33.39146213200007
+                    ],
+                    [
+                        -80.84850462299994,
+                        33.39201714700005
+                    ],
+                    [
+                        -80.84818479599994,
+                        33.39205595000004
+                    ],
+                    [
+                        -80.84754526899997,
+                        33.39222116900004
+                    ],
+                    [
+                        -80.84677968999995,
+                        33.39244855700008
+                    ],
+                    [
+                        -80.84614998299998,
+                        33.39263394300008
+                    ],
+                    [
+                        -80.84598599899994,
+                        33.39265675100006
+                    ],
+                    [
+                        -80.84588959899997,
+                        33.39265691500003
+                    ],
+                    [
+                        -80.84466878099994,
+                        33.39256157600005
+                    ],
+                    [
+                        -80.84458513199996,
+                        33.392586480000034
+                    ],
+                    [
+                        -80.84458907099997,
+                        33.39259896400006
+                    ],
+                    [
+                        -80.84449221799997,
+                        33.39263043500006
+                    ],
+                    [
+                        -80.84397696899998,
+                        33.39303759500007
+                    ],
+                    [
+                        -80.84336727999994,
+                        33.393348426000045
+                    ],
+                    [
+                        -80.84298534099997,
+                        33.39351538100004
+                    ],
+                    [
+                        -80.84235676099996,
+                        33.39375140100003
+                    ],
+                    [
+                        -80.84177161499997,
+                        33.39397110700003
+                    ],
+                    [
+                        -80.84172935499998,
+                        33.39410622500003
+                    ],
+                    [
+                        -80.84002962099999,
+                        33.39424686600006
+                    ],
+                    [
+                        -80.84000410699997,
+                        33.394088673000056
+                    ],
+                    [
+                        -80.83996517199995,
+                        33.39384712300006
+                    ]
+                ],
+                [
+                    [
+                        -80.83758704899998,
+                        33.38291684200004
+                    ],
+                    [
+                        -80.83756638899996,
+                        33.382718270000055
+                    ],
+                    [
+                        -80.83778169599998,
+                        33.384067894000054
+                    ],
+                    [
+                        -80.83784774899993,
+                        33.384481393000044
+                    ],
+                    [
+                        -80.83801643899994,
+                        33.38553740800006
+                    ],
+                    [
+                        -80.83830582999997,
+                        33.38734810600005
+                    ],
+                    [
+                        -80.83859842999993,
+                        33.38918560900004
+                    ],
+                    [
+                        -80.83861947299994,
+                        33.38931775400005
+                    ],
+                    [
+                        -80.83887369699994,
+                        33.390908713000044
+                    ],
+                    [
+                        -80.83888240799996,
+                        33.390963233000036
+                    ],
+                    [
+                        -80.83895014799998,
+                        33.39138714200004
+                    ],
+                    [
+                        -80.83929420099997,
+                        33.393539503000056
+                    ],
+                    [
+                        -80.83941621399998,
+                        33.39430053500007
+                    ],
+                    [
+                        -80.83937745899993,
+                        33.39430375100005
+                    ],
+                    [
+                        -80.83842070199995,
+                        33.394383136000044
+                    ],
+                    [
+                        -80.83835339999996,
+                        33.39388834400006
+                    ],
+                    [
+                        -80.83818188299995,
+                        33.39262729300003
+                    ],
+                    [
+                        -80.83807851999995,
+                        33.39234682800003
+                    ],
+                    [
+                        -80.83806718399995,
+                        33.391929024000035
+                    ],
+                    [
+                        -80.83806190099995,
+                        33.39173428300006
+                    ],
+                    [
+                        -80.83804096099999,
+                        33.39111137000003
+                    ],
+                    [
+                        -80.83803882699993,
+                        33.39104769000005
+                    ],
+                    [
+                        -80.83803831799997,
+                        33.391032454000026
+                    ],
+                    [
+                        -80.83803657899995,
+                        33.39098051600007
+                    ],
+                    [
+                        -80.83803631799998,
+                        33.39097274300008
+                    ],
+                    [
+                        -80.83803605599996,
+                        33.39096497000003
+                    ],
+                    [
+                        -80.83803446299999,
+                        33.39091753300005
+                    ],
+                    [
+                        -80.83798533399994,
+                        33.38945529200004
+                    ],
+                    [
+                        -80.83798345599996,
+                        33.38939939100004
+                    ],
+                    [
+                        -80.83796127999994,
+                        33.388739412000064
+                    ],
+                    [
+                        -80.83787370599998,
+                        33.38613277400003
+                    ],
+                    [
+                        -80.83785535099997,
+                        33.38566517700008
+                    ],
+                    [
+                        -80.83785421799996,
+                        33.38563629200007
+                    ],
+                    [
+                        -80.83785318699995,
+                        33.38561013000003
+                    ],
+                    [
+                        -80.83784653899994,
+                        33.385440868000046
+                    ],
+                    [
+                        -80.83783773699997,
+                        33.38521160300007
+                    ],
+                    [
+                        -80.83782931799999,
+                        33.38508921300007
+                    ],
+                    [
+                        -80.83781841199999,
+                        33.38496768700003
+                    ],
+                    [
+                        -80.83780498199997,
+                        33.38484633200005
+                    ],
+                    [
+                        -80.83778903399997,
+                        33.38472520000005
+                    ],
+                    [
+                        -80.83777059199997,
+                        33.38460455300003
+                    ],
+                    [
+                        -80.83774988699997,
+                        33.38448250000005
+                    ],
+                    [
+                        -80.83768113399998,
+                        33.383821100000034
+                    ],
+                    [
+                        -80.83758704899998,
+                        33.38291684200004
+                    ]
+                ]
+            ]
+        }
+    },
+    {
+        "id": 2033,
+        "name": "Fitzgerald / Rae North",
+        "loc": "Augusta County, VA",
+        "lat": 38.021142,
+        "lon": -79.022295,
+        "acreage": 124,
+        "domains": {
+            "environment": 4.2,
+            "transportation": 3.3,
+            "energy": 5.0,
+            "social": 4.1
+        },
+        "crit": {
+            "interstate": {
+                "s": 4,
+                "m": "4.3 mi"
+            },
+            "principal_arterial": {
+                "s": 1,
+                "m": "26.3 mi"
+            },
+            "minor_arterial": {
+                "s": 5,
+                "m": "0.9 mi"
+            },
+            "major_collector": {
+                "s": 4,
+                "m": "1.3 mi"
+            },
+            "transmission": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "gas_pipeline": {
+                "s": 5,
+                "m": "0.0 mi"
+            },
+            "floodplain_100": {
+                "s": 3,
+                "m": "39.2 %"
+            },
+            "floodplain_500": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "floodway": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "wet_water": {
+                "s": 4,
+                "m": "3.0 %"
+            },
+            "slope": {
+                "s": 4,
+                "m": "2.5 %"
+            },
+            "non_attainment": {
+                "s": 5,
+                "m": "0.0 %"
+            },
+            "hospital": {
+                "s": 5,
+                "m": "5.4 mi"
+            },
+            "school": {
+                "s": 3,
+                "m": "0.7 mi"
+            },
+            "cemetery": {
+                "s": 5,
+                "m": "0"
+            }
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [
+                        -79.02610428399998,
+                        38.01650005300007
+                    ],
+                    [
+                        -79.02765356299994,
+                        38.016309861000025
+                    ],
+                    [
+                        -79.02762159099996,
+                        38.016435917000024
+                    ],
+                    [
+                        -79.02721839099996,
+                        38.01707040700006
+                    ],
+                    [
+                        -79.02678752199995,
+                        38.01774842400005
+                    ],
+                    [
+                        -79.02642848899995,
+                        38.01866823900008
+                    ],
+                    [
+                        -79.02643117399998,
+                        38.01882214300008
+                    ],
+                    [
+                        -79.02662317499994,
+                        38.02349631300007
+                    ],
+                    [
+                        -79.02403156899999,
+                        38.02344120200007
+                    ],
+                    [
+                        -79.01546052099997,
+                        38.023232019000034
+                    ],
+                    [
+                        -79.01530577099999,
+                        38.021265362000065
+                    ],
+                    [
+                        -79.01946384899998,
+                        38.02070918100003
+                    ],
+                    [
+                        -79.01908725099997,
+                        38.01899820700004
+                    ],
+                    [
+                        -79.02151520199999,
+                        38.01867406300005
+                    ],
+                    [
+                        -79.02146988099997,
+                        38.01737398600005
+                    ],
+                    [
+                        -79.02372460999999,
+                        38.01730971400008
+                    ],
+                    [
+                        -79.02610428399998,
+                        38.01650005300007
+                    ]
+                ]
+            ]
+        }
+    }
+]
+
+const DOMAIN_W = {environment:0.20, transportation:0.25, energy:0.50, social:0.05};
+const CRIT_LABELS = {
+  interstate:"Interstate", principal_arterial:"Principal Arterial", minor_arterial:"Minor Arterial",
+  major_collector: "Major Collector", transmission:"Transmission", gas_pipeline:"Natural Gas pipeline",
+  floodplain_100:"Floodplain (100yr)", floodplain_500:"Floodplain (500yr)",
+  floodway:"Floodway", wet_water:"Wet/water", slope:"Slope", non_attainment:"Air (attainment)",
+  hospital: "Hospital", school: "School", cemetery: "Cemetery Count"
+};
+const CRIT_DOMAIN = {
+  interstate:"transportation", principal_arterial:"transportation", minor_arterial:"transportation",
+  major_collector: "transportation", transmission:"energy", gas_pipeline:"energy",
+  floodplain_100:"environment", floodplain_500:"environment", floodway:"environment",
+  wet_water:"environment", slope:"environment", non_attainment:"environment", hospital: 'social',
+  school: "social", cemetery: "social"
+};
+
+// composite (1-5) -> percentage
+function composite(d){ return DOMAIN_W.environment*d.environment + DOMAIN_W.transportation*d.transportation + DOMAIN_W.energy*d.energy + DOMAIN_W.social * d.social; }
+function pct(d){ return Math.round((composite(d)-1)/4*100); }
+function colorFor(p){ return p>=90 ? "#2ecc71" : p >= 80 ? "#f1c40f": p>=60 ? "#e67e22" : "#e74c3c"; }
+function verdictFor(p){ return p>=90 ? "Excellent" : p >= 80 ? "Very Good": p>=60 ? "Good" : "Marginal"; }
+function scoreColor(s){ // 1-5 -> color
+  return s>=4.5?"#2ecc71":s>=3.5?"#7ed957":s>=2.5?"#f4c542":s>=1.5?"#f39c12":"#e74c3c"; }
+
+// compute + sort
+SITES.forEach(s=>{ s.pct = pct(s.domains); s.comp = composite(s.domains); });
+SITES.sort((a,b)=>b.pct-a.pct);
+
+// ----- summary stats ---------------------------------------------------------
+document.getElementById("s-exc").textContent = SITES.filter(s=>s.pct>=90).length;
+document.getElementById("s-avg").textContent = Math.round(SITES.reduce((a,s)=>a+s.pct,0)/SITES.length)+"%";
+document.getElementById("s-top").textContent = SITES[0].name;
+
+// ----- map -------------------------------------------------------------------
+const map = L.map('map',{scrollWheelZoom:true}).setView([30.0,-96.2], 8);
+//const map = L.map('map',{scrollWheelZoom:true}).setView([36.65,-83.83], 8);
+//L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+ //attribution:'&copy; OpenStreetMap contributors', maxZoom:19
+//}).addTo(map);
+
+L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+  {
+    attribution: 'Tiles © Esri'
+  }
+).addTo(map);
+
+//const markers = {};
+//SITES.forEach((s,i)=>{
+  //const c = colorFor(s.pct);
+  //const m = L.circleMarker([s.lat,s.lon],{
+    //radius:13, fillColor:c, color:"#0b0f14", weight:2, fillOpacity:.92
+  //}).addTo(map);
+  //m.bindTooltip(`<b>${s.name}</b><br>${s.pct}% &middot; #${i+1}`,{direction:"top"});
+  //m.on('click',()=>select(s.id));
+  // rank label
+  //m.bindPopup(`<b>#${i+1} ${s.name}</b><br>${s.loc}<br>Score: <b>${s.pct}%</b>`);
+ //markers[s.id]=m;
+//});
+
+
+//const grp = L.featureGroup(Object.values(markers));
+//const allBounds = grp.getBounds().pad(0.15);
+//map.fitBounds(allBounds);
+//refit once after layout settles (guards against 0-size map at load)
+//map.fitBounds(grp.getBounds().pad(0.25));
+
+//setTimeout(()=>{map.invalidateSize(); map.fitBounds(allBounds); },200);
+
+  // ----- Home button: reset map to full extent of all sites ----------------
+  //const HomeControl = L.Control.extend({
+    //options:{ position:'topleft' },
+    //onAdd:function(){
+      //const btn = L.DomUtil.create('a','leaflet-home-btn');
+      //btn.href = '#';
+      //btn.title = 'Zoom to all sites';
+      //btn.setAttribute('role','button');
+      //btn.setAttribute('aria-label','Zoom to all sites');
+      //btn.innerHTML = '&#8962;';   // house glyph
+      //L.DomEvent.on(btn,'click',function(e){
+        //L.DomEvent.stop(e);
+        //map.closePopup();
+        //map.fitBounds(allBounds,{animate:true});
+      //});
+      //L.DomEvent.disableClickPropagation(btn);
+      //return btn;
+    //}
+  //});
+  //map.addControl(new HomeControl());
+
+// Circle markers (overview, shown when zoomed OUT) and parcel polygons
+  // (detail, shown when zoomed IN past ZOOM_THRESHOLD). Each site keeps a
+  // reference so select() can highlight/zoom to it either way.
+const ZOOM_THRESHOLD = 12;        // at/above this zoom -> show polygons
+const markers = {};               // circleMarker per site id
+const polygons = {};              // geoJSON layer per site id (if geometry)
+const circleLayer = L.layerGroup();
+const polygonLayer = L.layerGroup();
+
+SITES.forEach((s,i)=>{
+    const col = colorFor(s.pct);
+
+    // --- circle marker (overview) ---
+    const m = L.circleMarker([s.lat,s.lon],{
+      radius:13, fillColor:col, color:"#0b0f14", weight:2, fillOpacity:.92
+    });
+    m.bindTooltip(`<b>${s.name}</b><br>${s.pct}% &middot; #${i+1}`,{direction:"top",sticky:false,opacity:0.95});
+    m.on('click',()=>select(s.id));
+    circleLayer.addLayer(m);
+    markers[s.id]=m;
+
+    // --- parcel polygon (detail) -- only if the site has GeoJSON geometry ---
+    if(s.geometry){
+      const poly = L.geoJSON(s.geometry,{
+        //style:{ color:"#0b0f14", weight:2, fillColor:col, fillOpacity:.55 }
+        style:{color: "#1E90FF", weight:2, fillColor:col, fillOpacity:.80}
+      });
+      poly.bindTooltip(`<b>${s.name}</b><br>${s.pct}% &middot; #${i+1}`,{sticky:true,opacity:0.95});
+      poly.on('click',()=>select(s.id));
+      polygonLayer.addLayer(poly);
+      polygons[s.id]=poly;
+      //console.log(poly)
+    }
+    //console.log(polygonLayer.getLayers().length);
+    //console.log(Object.keys(polygons).length);
+  
+  });
+
+  // Bounds for "all sites" -- prefer polygon bounds where available, else points
+  let allBounds;
+  if(Object.keys(polygons).length){
+    const pg = L.featureGroup(Object.values(polygons).concat(Object.values(markers)));
+    allBounds = pg.getBounds().pad(0.15);
+  } else {
+    allBounds = L.featureGroup(Object.values(markers)).getBounds().pad(0.15);
+  }
+
+  // Swap circle/polygon layer based on current zoom
+function updateLayerByZoom(){
+    const z = map.getZoom();
+    const usePolys = (z >= ZOOM_THRESHOLD) && Object.keys(polygons).length;
+    if(usePolys){
+      if(map.hasLayer(circleLayer)) map.removeLayer(circleLayer);
+      if(!map.hasLayer(polygonLayer)) map.addLayer(polygonLayer);
+    } else {
+      if(map.hasLayer(polygonLayer)) map.removeLayer(polygonLayer);
+      if(!map.hasLayer(circleLayer)) map.addLayer(circleLayer);
+    }
+  }
+
+//map.addLayer(polygonLayer)
+map.on('zoomend', updateLayerByZoom);
+updateLayerByZoom();              // set initial layer
+
+//polygonLayer.addTo(map)
+
+map.fitBounds(allBounds);
+setTimeout(()=>{ map.invalidateSize(); map.fitBounds(allBounds); updateLayerByZoom(); }, 200);
+
+  // ----- Home button: reset map to full extent of all sites ----------------
+const HomeControl = L.Control.extend({
+    options:{ position:'topleft' },
+    onAdd:function(){
+      const btn = L.DomUtil.create('a','leaflet-home-btn');
+      btn.href = '#';
+      btn.title = 'Zoom to all sites';
+      btn.setAttribute('role','button');
+      btn.setAttribute('aria-label','Zoom to all sites');
+      btn.innerHTML = '&#8962;';   // house glyph
+      L.DomEvent.on(btn,'click',function(e){
+        L.DomEvent.stop(e);
+        map.closePopup();
+        map.fitBounds(allBounds,{animate:true});
+      });
+      L.DomEvent.disableClickPropagation(btn);
+      return btn;
+    }
+  });
+map.addControl(new HomeControl());
+
+// ----- ranked list -----------------------------------------------------------
+const listEl = document.getElementById("list");
+SITES.forEach((s,i)=>{
+  const c = colorFor(s.pct);
+  const row = document.createElement("div");
+  row.className="row"; row.dataset.id=s.id;
+  row.innerHTML = `
+    <div class="rank">#${i+1}</div>
+    <div class="score-badge" style="background:${c}">
+      <span class="pct">${s.pct}%</span><span class="lab">${verdictFor(s.pct)}</span>
+    </div>
+    <div class="meta">
+      <div class="name">${s.name}</div>
+      <div class="desc">${s.loc} &middot; ${s.acreage} acres</div>
+      <div class="mini">
+        <span style="background:${scoreColor(s.domains.environment)}" title="Environment"></span>
+        <span style="background:${scoreColor(s.domains.transportation)}" title="Transportation"></span>
+        <span style="background:${scoreColor(s.domains.energy)}" title="Energy"></span>
+        <span style="background:${scoreColor(s.domains.social)}" title="Social"></span>
+      </div>
+    </div>`;
+  row.onclick=()=>select(s.id);
+  listEl.appendChild(row);
+});
+
+// ----- detail panel ----------------------------------------------------------
+function select(id, moveMap=true){
+  const s = SITES.find(x=>x.id===id);
+  const i = SITES.indexOf(s);
+  document.querySelectorAll(".row").forEach(r=>r.classList.toggle("active",r.dataset.id===id));
+  const c = colorFor(s.pct);
+
+  // domain bars
+  const domHtml = ["environment","transportation","energy", "social"].map(d=>{
+    const v = s.domains[d]; const p = Math.round((v-1)/4*100);
+    const label = d.charAt(0).toUpperCase()+d.slice(1);
+    return `<div class="dom">
+      <div class="top"><b>${label}</b> <span class="v">${v.toFixed(1)}/5 &middot; weight ${Math.round(DOMAIN_W[d]*100)}%</span></div>
+      <div class="bar"><i style="width:${p}%;background:${scoreColor(v)}"></i></div>
+    </div>`;
+  }).join("");
+
+  // criteria grouped by domain
+  const order = ["transportation","energy","environment", 'social'];
+  let critHtml = "";
+  order.forEach(dom=>{
+    const keys = Object.keys(s.crit).filter(k=>CRIT_DOMAIN[k]===dom);
+    critHtml += `<div class="ct">${dom} <span style="float:right;text-transform:none;letter-spacing:0">Actual Value &middot; Score</span></div><table>`;
+    keys.forEach(k=>{
+      const c = s.crit[k];
+      critHtml += `<tr><td class="k">${CRIT_LABELS[k]}</td>
+        <td class="m">${c.m}</td>
+        <td class="s"><span class="pill" style="background:${scoreColor(c.s)}">${c.s}</span></td></tr>`;
+    });
+    critHtml += `</table>`;
+  });
+
+  document.getElementById("detail").innerHTML = `
+    <h3>#${i+1} &middot; ${s.name}</h3>
+    <div class="loc">${s.loc} &middot; Site ID ${s.id} &middot; ${s.acreage} acres</div>
+    <div class="bigscore">
+      <div class="num" style="color:${c}">${s.pct}<small>%</small></div>
+      <div>
+        <span class="verdict" style="background:${c};color:#0b0f14">${verdictFor(s.pct)}</span>
+        <div style="color:var(--muted);font-size:12px;margin-top:6px">Composite ${s.comp.toFixed(2)}/5</div>
+      </div>
+    </div>
+    <div class="domains">${domHtml}</div>
+    <div class="crit">${critHtml}</div>`;
+   if(moveMap && markers[id]){
+      // zoom in enough to reveal the parcel polygon (past the threshold)
+      map.setView([s.lat,s.lon], Math.max(map.getZoom(), 13), {animate:true});
+    }
+  //if(markers[id]){ map.setView([s.lat,s.lon], Math.max(map.getZoom(),13), {animate:true}); markers[id].openPopup(); }
+}
+
+// select the top site by default
+select(SITES[0].id);
+</script>
+</body>
+</html>
